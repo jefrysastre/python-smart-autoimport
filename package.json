@@ -1,0 +1,76 @@
+{
+  "name": "python-smart-autoimport",
+  "displayName": "Python Smart Auto-Import",
+  "description": "Automatically imports Python symbols on save when there's only one unambiguous import option",
+  "version": "0.0.2",
+  "publisher": "JefrySastrePerez",
+  "author": {
+    "name": "Jefry Sastre Perez"
+  },
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/jefrysastre/python-smart-autoimport"
+  },
+  "bugs": {
+    "url": "https://github.com/jefrysastre/python-smart-autoimport/issues"
+  },
+  "keywords": [
+    "python",
+    "import",
+    "auto-import",
+    "autoimport",
+    "productivity",
+    "intellisense"
+  ],
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": [
+    "Programming Languages",
+    "Linters"
+  ],
+  "activationEvents": [
+    "onLanguage:python"
+  ],
+  "main": "./dist/extension.js",
+  "contributes": {
+    "configuration": {
+      "title": "Python Smart Auto-Import",
+      "properties": {
+        "pythonSmartAutoImport.enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable automatic imports"
+        },
+        "pythonSmartAutoImport.onlyOwnCode": {
+          "type": "boolean",
+          "default": false,
+          "description": "Only auto-import from your own project files, not external packages"
+        }
+      }
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run package",
+    "compile": "npm run check-types && node esbuild.js",
+    "watch": "npm-run-all -p watch:*",
+    "watch:esbuild": "node esbuild.js --watch",
+    "watch:tsc": "tsc --noEmit --watch --project tsconfig.json",
+    "package": "npm run check-types && node esbuild.js --production",
+    "check-types": "tsc --noEmit",
+    "pretest": "npm run compile && npm run lint",
+    "lint": "eslint src --ext ts"
+  },
+  "devDependencies": {
+    "@types/mocha": "^10.0.10",
+    "@types/node": "20.x",
+    "@types/vscode": "^1.85.0",
+    "@typescript-eslint/eslint-plugin": "^6.13.0",
+    "@typescript-eslint/parser": "^6.13.0",
+    "esbuild": "^0.25.12",
+    "eslint": "^8.54.0",
+    "npm-run-all": "^4.1.5",
+    "typescript": "^5.3.0"
+  }
+}

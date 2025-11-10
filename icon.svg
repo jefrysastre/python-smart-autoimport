@@ -1,0 +1,6 @@
+<svg width="128" height="128" xmlns="http://www.w3.org/2000/svg">
+  <rect width="128" height="128" rx="12" fill="#3776ab"/>
+  <text x="64" y="95" font-family="Arial, sans-serif" font-size="80" font-weight="bold" fill="#ffd343" text-anchor="middle">Py</text>
+  <path d="M 85 25 L 105 25 L 95 40 Z" fill="#4CAF50"/>
+  <circle cx="95" cy="35" r="3" fill="white"/>
+</svg>
