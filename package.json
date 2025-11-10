@@ -2,7 +2,7 @@
   "name": "python-smart-autoimport",
   "displayName": "Python Smart Auto-Import",
   "description": "Automatically imports Python symbols on save when there's only one unambiguous import option",
-  "version": "0.0.2",
+  "version": "0.0.4",
   "publisher": "JefrySastrePerez",
   "author": {
     "name": "Jefry Sastre Perez"

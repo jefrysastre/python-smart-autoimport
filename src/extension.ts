@@ -1,52 +1,95 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
 
+let outputChannel: vscode.OutputChannel;
+
 export function activate(context: vscode.ExtensionContext) {
-	console.log('Python Smart Auto-Import is now active!');
+	outputChannel = vscode.window.createOutputChannel('Python Smart Auto-Import');
+	outputChannel.appendLine('Python Smart Auto-Import extension activated!');
+	outputChannel.appendLine(`Version: ${context.extension.packageJSON.version}`);
+	outputChannel.appendLine('---');
 
 	// Run on document save
 	const onSaveDisposable = vscode.workspace.onDidSaveTextDocument(async (document) => {
-		if (document.languageId !== 'python') return;
+		outputChannel.appendLine(`\n[${new Date().toLocaleTimeString()}] Document saved: ${document.fileName}`);
+
+		if (document.languageId !== 'python') {
+			outputChannel.appendLine(`Skipped: Not a Python file (language: ${document.languageId})`);
+			return;
+		}
 
 		const config = vscode.workspace.getConfiguration('pythonSmartAutoImport');
-		if (!config.get('enabled')) return;
+		const enabled = config.get('enabled');
+
+		if (!enabled) {
+			outputChannel.appendLine('Skipped: Extension is disabled in settings');
+			return;
+		}
 
 		const editor = vscode.window.activeTextEditor;
-		if (!editor || editor.document.uri.toString() !== document.uri.toString()) return;
+		if (!editor || editor.document.uri.toString() !== document.uri.toString()) {
+			outputChannel.appendLine('Skipped: Document is not in active editor');
+			return;
+		}
 
+		outputChannel.appendLine('Processing auto-imports...');
 		await autoImportMissingSymbols(editor);
 	});
 
 	context.subscriptions.push(onSaveDisposable);
+	context.subscriptions.push(outputChannel);
 }
 
 async function autoImportMissingSymbols(editor: vscode.TextEditor) {
 	const diagnostics = vscode.languages.getDiagnostics(editor.document.uri);
+	outputChannel.appendLine(`Found ${diagnostics.length} diagnostic(s) from language server`);
+
 	const config = vscode.workspace.getConfiguration('pythonSmartAutoImport');
 	const onlyOwnCode = config.get<boolean>('onlyOwnCode', false);
+	outputChannel.appendLine(`Settings: onlyOwnCode=${onlyOwnCode}`);
+
+	let processedCount = 0;
+	let importedCount = 0;
 
 	for (const diagnostic of diagnostics) {
 		if (diagnostic.message.includes('is not defined')) {
+			processedCount++;
+			outputChannel.appendLine(`\nProcessing: "${diagnostic.message}"`);
+
 			const codeActions = await vscode.commands.executeCommand<vscode.CodeAction[]>(
 				'vscode.executeCodeActionProvider',
 				editor.document.uri,
 				diagnostic.range
 			);
 
-			if (!codeActions) continue;
+			if (!codeActions) {
+				outputChannel.appendLine('  No code actions available');
+				continue;
+			}
 
 			let importActions = codeActions.filter(action =>
 				action.title.toLowerCase().includes('import')
 			);
 
+			outputChannel.appendLine(`  Found ${importActions.length} import action(s)`);
+			if (importActions.length > 0) {
+				importActions.forEach(action => {
+					outputChannel.appendLine(`    - ${action.title}`);
+				});
+			}
+
 			// Filter to only own code if setting is enabled
 			if (onlyOwnCode) {
+				const beforeFilter = importActions.length;
 				importActions = importActions.filter(action => isOwnCodeImport(action, editor));
+				outputChannel.appendLine(`  After onlyOwnCode filter: ${importActions.length} action(s) (filtered out ${beforeFilter - importActions.length})`);
 			}
 
 			// Only auto-import if there's exactly ONE option
 			if (importActions.length === 1 && importActions[0].edit) {
+				outputChannel.appendLine(`  ✓ Auto-importing: ${importActions[0].title}`);
 				await vscode.workspace.applyEdit(importActions[0].edit);
+				importedCount++;
 
 				// Wait for document to update
 				await new Promise(resolve => setTimeout(resolve, 100));
@@ -71,10 +114,17 @@ async function autoImportMissingSymbols(editor: vscode.TextEditor) {
 					const position = new vscode.Position(lastImportLine, lines[lastImportLine].length);
 					edit.insert(document.uri, position, '  # auto-imported');
 					await vscode.workspace.applyEdit(edit);
+					outputChannel.appendLine('  Added "# auto-imported" comment');
 				}
+			} else if (importActions.length === 0) {
+				outputChannel.appendLine('  ✗ Skipped: No import options available');
+			} else if (importActions.length > 1) {
+				outputChannel.appendLine(`  ✗ Skipped: Multiple import options (${importActions.length}), ambiguous`);
 			}
 		}
 	}
+
+	outputChannel.appendLine(`\nSummary: Processed ${processedCount} undefined symbol(s), imported ${importedCount}`);
 }
 
 function isOwnCodeImport(action: vscode.CodeAction, editor: vscode.TextEditor): boolean {
@@ -83,16 +133,23 @@ function isOwnCodeImport(action: vscode.CodeAction, editor: vscode.TextEditor): 
 
 	// If it's a relative import (from .xxx import yyy)
 	if (title.includes('from .')) {
+		outputChannel.appendLine(`    → Accepted: Relative import detected`);
 		return true;
 	}
 
 	// Extract the import statement from the action
 	const edit = action.edit;
-	if (!edit) return false;
+	if (!edit) {
+		outputChannel.appendLine(`    → Rejected: No edit available`);
+		return false;
+	}
 
 	// Get the workspace folder
 	const workspaceFolder = vscode.workspace.getWorkspaceFolder(editor.document.uri);
-	if (!workspaceFolder) return false;
+	if (!workspaceFolder) {
+		outputChannel.appendLine(`    → Rejected: No workspace folder found`);
+		return false;
+	}
 
 	// Check if the edit contains relative imports or local module paths
 	for (const [uri, edits] of edit.entries()) {
@@ -101,6 +158,7 @@ function isOwnCodeImport(action: vscode.CodeAction, editor: vscode.TextEditor): 
 
 			// Relative imports (from .xxx or from ..xxx)
 			if (text.includes('from .')) {
+				outputChannel.appendLine(`    → Accepted: Relative import in edit text`);
 				return true;
 			}
 
@@ -110,11 +168,14 @@ function isOwnCodeImport(action: vscode.CodeAction, editor: vscode.TextEditor): 
 			const moduleName = fromMatch ? fromMatch[1] : importMatch ? importMatch[1] : null;
 
 			if (moduleName) {
-				return isLocalModule(moduleName, workspaceFolder, editor);
+				const result = isLocalModule(moduleName, workspaceFolder, editor);
+				outputChannel.appendLine(`    → ${result ? 'Accepted' : 'Rejected'}: Module "${moduleName}" ${result ? 'is' : 'is not'} local`);
+				return result;
 			}
 		}
 	}
 
+	outputChannel.appendLine(`    → Rejected: No module name found in import`);
 	return false;
 }
 

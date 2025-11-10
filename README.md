@@ -21,21 +21,26 @@ Automatically imports Python symbols when there's only one unambiguous import op
 
 **Before saving:**
 ```python
+from myproject.utils import helper_function
+
 def main():
     data = [1, 2, 3, 4, 5]
-    result = np.array(data)  # np is not defined
+    result = calculate_mean(data)  # calculate_mean is not defined
     print(result)
 ```
 
-**After saving (with numpy installed):**
+**After saving (if `calculate_mean` exists in your project):**
 ```python
-import numpy as np  # auto-imported
+from myproject.utils import helper_function
+from myproject.math_utils import calculate_mean  # auto-imported
 
 def main():
     data = [1, 2, 3, 4, 5]
-    result = np.array(data)
+    result = calculate_mean(data)
     print(result)
 ```
+
+> **Note**: The extension relies on the Python language server's code action suggestions. It works best with direct function/class names, not aliased imports like `np` for `numpy`.
 
 ## Requirements
 
